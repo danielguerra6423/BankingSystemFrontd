@@ -1,5 +1,3 @@
-import React from 'react';
-
 export default function Navbar({ onNavigateLogin, onNavigateRegister }) {
   return (
     <>
@@ -15,8 +13,8 @@ export default function Navbar({ onNavigateLogin, onNavigateRegister }) {
     <a href="#">Contacto</a>
   </div>
   <div className="nav-actions">
-    <button className="btn-nav-login" id="nav-login">Iniciar sesión</button>
-    <button className="btn-nav-register" id="nav-register">Abrir cuenta</button>
+    <button className="btn-nav-login" id="nav-login" onClick={onNavigateLogin}>Iniciar sesión</button>
+    <button className="btn-nav-register" id="nav-register" onClick={onNavigateRegister}>Abrir cuenta</button>
   </div>
 </nav>
 
