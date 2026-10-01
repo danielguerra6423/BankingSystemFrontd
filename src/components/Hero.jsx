@@ -1,4 +1,4 @@
-export default function Hero() {
+export default function Hero({ onNavigateLogin, onNavigateRegister }) {
     return (
         <>
             <section className="hero">
@@ -14,8 +14,8 @@ export default function Hero() {
                         Gestiona cuentas, transfiere al instante y crece con nosotros.
                     </p>
                     <div className="hero-actions">
-                        <button className="btn-primary" id="hero-btn-register">Abrir mi cuenta</button>
-                        <button className="btn-outline" id="hero-btn-login">Iniciar sesión</button>
+                        <button className="btn-primary" id="hero-btn-register" onClick={onNavigateRegister}>Abrir mi cuenta</button>
+                        <button className="btn-outline" id="hero-btn-login" onClick={onNavigateLogin}>Iniciar sesión</button>
                     </div>
                 </div>
                 <div className="hero-visual">
