@@ -396,6 +396,7 @@ input,select,textarea { font-family:var(--font-ui); outline:none; }
   padding:10px 12px; border-radius:var(--radius-sm);
   font-size:13px; color:var(--w60); transition:var(--trans);
   margin-bottom:2px; width:100%; background:transparent; text-align:left;
+  text-decoration:none;
 }
 .nav-item:hover { background:var(--w04); color:var(--white); }
 .nav-item.active { background:var(--green-glow); color:var(--green); font-weight:600; }
@@ -411,6 +412,8 @@ input,select,textarea { font-family:var(--font-ui); outline:none; }
 .dashboard-eyebrow { color:var(--green); font-size:10px; font-weight:600; letter-spacing:1.4px; text-transform:uppercase; margin-bottom:7px; }
 .dashboard-nav-group { display:contents; }
 .dashboard-empty { color:var(--w60); font-size:13px; line-height:1.6; }
+.panel-balance { color:var(--w60); font-size:13px; margin:-6px 0 16px; }
+.panel-balance strong { color:var(--green); }
 .dashboard-demo-note { margin-top:24px; color:var(--w40); font-size:11px; line-height:1.5; }
 .profile-grid .op-card p { color:var(--w60); font-size:13px; line-height:1.8; }
 .profile-grid .op-card strong { color:var(--white); font-weight:500; }
@@ -558,6 +561,8 @@ input,select,textarea { font-family:var(--font-ui); outline:none; }
 
 /* Perfil */
 .profile-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.profile-grid + .profile-grid { margin-top:20px; }
+.profile-grid .op-card + .op-card { margin-top:0; }
 
 /* Transferir */
 .transfer-validation {

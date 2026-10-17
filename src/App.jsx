@@ -1,14 +1,40 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, Routes, Route } from 'react-router-dom';
 import LandingPage from './Pages/LandingPage.jsx';
 import LoginPage from './Pages/LoginPage.jsx';
 import RegisterPage from './Pages/RegisterPage.jsx';
 import DashboardPage from './Pages/DashboardPage.jsx';
 
+// La sesión se guarda en sessionStorage para que recargar /dashboard/consignar
+// no saque al usuario; se borra sola al cerrar la pestaña.
+const SESSION_KEY = 'miplata-session';
+
+function readSession() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(SESSION_KEY));
+    if (Array.isArray(saved?.accounts)) return saved;
+  } catch {
+    // sessionStorage no disponible o con datos dañados: se empieza sin sesión
+  }
+  return { accounts: [], currentUsername: null };
+}
+
 export default function App() {
-  const [accounts, setAccounts] = useState([]);
-  const [currentUsername, setCurrentUsername] = useState(null);
+  const [accounts, setAccounts] = useState(() => readSession().accounts);
+  const [currentUsername, setCurrentUsername] = useState(() => readSession().currentUsername);
   const currentAccount = accounts.find((account) => account.username === currentUsername);
+
+  useEffect(() => {
+    try {
+      if (currentUsername) {
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify({ accounts, currentUsername }));
+      } else {
+        sessionStorage.removeItem(SESSION_KEY);
+      }
+    } catch {
+      // si no se puede guardar, la app sigue funcionando en memoria
+    }
+  }, [accounts, currentUsername]);
 
   function handleDeposit(username, amount) {
     const date = new Date().toISOString();
@@ -102,22 +128,17 @@ export default function App() {
         path="/login"
         element={
           <LoginPage
-            accounts={accounts}
-            onLogin={setCurrentUsername}
+            onLogin={(account) => {
+              // la cuenta viene de la BD; se guarda en memoria para que el dashboard la use
+              setAccounts((current) => [...current.filter((existing) => existing.username !== account.username), account]);
+              setCurrentUsername(account.username);
+            }}
           />
         }
       />
+      <Route path="/registro" element={<RegisterPage />} />
       <Route
-        path="/registro"
-        element={
-          <RegisterPage
-            accounts={accounts}
-            onRegister={(account) => setAccounts((current) => [...current, account])}
-          />
-        }
-      />
-      <Route
-        path="/dashboard"
+        path="/dashboard/:section?"
         element={currentAccount ? (
           <DashboardPage
             account={currentAccount}
@@ -125,6 +146,10 @@ export default function App() {
             onDeposit={(amount) => handleDeposit(currentUsername, amount)}
             onWithdraw={(amount) => handleWithdraw(currentUsername, amount)}
             onTransfer={(toUsername, amount) => handleTransfer(currentUsername, toUsername, amount)}
+            onProfileUpdate={(changes) => setAccounts((current) => current.map((account) => (
+              // solo celular y correo: saldo y movimientos siguen siendo los de memoria
+              account.username === currentUsername ? { ...account, ...changes } : account
+            )))}
             onLogout={() => setCurrentUsername(null)}
           />
         ) : <Navigate to="/login" replace />}

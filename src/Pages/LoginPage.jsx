@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { iniciarSesion } from '../api.js'
 
-export default function LoginPage({ accounts, onLogin }) {
+export default function LoginPage({ onLogin }) {
   const [error, setError] = useState('')
+  const [sending, setSending] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
   const [registered, setRegistered] = useState(Boolean(location.state?.registered))
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
     setError('')
     setRegistered(false)
@@ -15,17 +17,28 @@ export default function LoginPage({ accounts, onLogin }) {
     const formData = new FormData(event.currentTarget)
     const username = String(formData.get('username')).trim().toLowerCase()
     const password = String(formData.get('password'))
-    const account = accounts.find(
-      (candidate) => candidate.username === username && candidate.password === password,
-    )
 
-    if (!account) {
-      setError('Usuario o contraseña incorrectos. Verifica los datos o crea una cuenta.')
+    if (!username || !password) {
+      setError('Ingresa tu usuario y contraseña.')
       return
     }
 
-    onLogin(account.username)
-    navigate('/dashboard')
+    if (username.length < 4 || password.length < 4) {
+      setError('El usuario y la contraseña deben tener mínimo 4 caracteres.')
+      return
+    }
+
+    // el backend valida la contraseña y bloquea la cuenta tras 3 intentos fallidos
+    setSending(true)
+    try {
+      const account = await iniciarSesion(username, password)
+      onLogin(account)
+      navigate('/dashboard')
+    } catch (requestError) {
+      setError(requestError.message)
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -36,7 +49,7 @@ export default function LoginPage({ accounts, onLogin }) {
           <p>Accede a tu banca digital y gestiona tus finanzas desde un solo lugar.</p>
           <div className="auth-demo">
             <p>Modo de demostración</p>
-            <code>Las cuentas duran mientras esta pestaña esté abierta.</code>
+            <code>Tras 3 intentos fallidos la cuenta se bloquea.</code>
             <code>No uses contraseñas reales.</code>
           </div>
         </section>
@@ -48,13 +61,13 @@ export default function LoginPage({ accounts, onLogin }) {
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label htmlFor="login-username">Usuario</label>
-              <input id="login-username" className="form-control" name="username" type="text" autoComplete="username" placeholder="Nombre de usuario" required />
+              <input id="login-username" className="form-control" name="username" type="text" autoComplete="username" placeholder="Nombre de usuario" minLength={4} required />
             </div>
             <div className="form-group">
               <label htmlFor="login-password">Contraseña</label>
-              <input id="login-password" className="form-control" name="password" type="password" autoComplete="current-password" placeholder="Contraseña" required />
+              <input id="login-password" className="form-control" name="password" type="password" autoComplete="current-password" placeholder="Contraseña" minLength={4} required />
             </div>
-            <button className="btn-submit" type="submit">Iniciar sesión</button>
+            <button className="btn-submit" type="submit" disabled={sending}>{sending ? 'Ingresando...' : 'Iniciar sesión'}</button>
           </form>
           <div className="auth-footer">¿No tienes cuenta? <Link to="/registro">Regístrate aquí</Link></div>
           <div className="auth-footer"><Link to="/">Volver al inicio</Link></div>
