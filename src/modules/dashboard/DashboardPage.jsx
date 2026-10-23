@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { Navigate, NavLink, useNavigate, useParams } from 'react-router-dom'
-import { abrirCuenta, actualizarContacto, cambiarClave } from '../api.js'
-import { ACCOUNT_TYPE_NAMES, accountLabel, shortAccountLabel } from '../bankAccounts.js'
-import { EMAIL_PATTERN, PHONE_PATTERN, formatAccountNumber, formatMoneyInput, noSpaces, onlyDigits, parseMoney } from '../inputFilters.js'
-import AccountPicker from '../components/AccountPicker.jsx'
-import CreditCardPanel from '../components/CreditCardPanel.jsx'
-import TransferPanel from '../components/TransferPanel.jsx'
+import { abrirCuenta, actualizarContacto, cambiarClave } from '../core/api/api.js'
+import { ACCOUNT_TYPE_NAMES, accountLabel, shortAccountLabel } from '../accounts/bankAccounts.js'
+import { EMAIL_PATTERN, PHONE_PATTERN, formatAccountNumber, formatMoneyInput, noSpaces, onlyDigits, parseMoney } from '../core/utils/inputFilters.js'
+import AccountPicker from '../accounts/AccountPicker.jsx'
+import CreditCardPanel from '../credit-card/CreditCardPanel.jsx'
+import TransferPanel from '../transfers/TransferPanel.jsx'
 
 // path: segmento de la URL de cada sección (/dashboard, /dashboard/consignar, ...)
 const navigation = [

@@ -3,8 +3,8 @@
 // actualizarContacto, cambiarClave, abrirCuenta, solicitarTarjeta, cancelarTarjeta), con las mismas reglas y mensajes de error,
 // para poder volver a la base de datos cambiando solo USE_LOCAL_STORAGE en api.js.
 
-import { ACCOUNT_TYPE_NAMES, withBankAccounts } from './bankAccounts.js'
-import { CARD_LIMIT_MAX, CARD_LIMIT_MIN } from './creditCard.js'
+import { ACCOUNT_TYPE_NAMES, withBankAccounts } from '../../accounts/bankAccounts.js'
+import { CARD_LIMIT_MAX, CARD_LIMIT_MIN } from '../../credit-card/creditCard.js'
 
 const USERS_KEY = 'miplata-users'
 const MAX_INTENTOS = 3

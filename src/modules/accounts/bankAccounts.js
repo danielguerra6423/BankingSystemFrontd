@@ -1,4 +1,4 @@
-import { formatAccountNumber } from './inputFilters.js'
+import { formatAccountNumber } from '../core/utils/inputFilters.js'
 
 // Un usuario puede tener hasta una cuenta de cada tipo, guardadas en user.bankAccounts:
 // [{ accountType, accountNumber, balance, transactions }]

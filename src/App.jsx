@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Routes, Route } from 'react-router-dom';
-import LandingPage from './Pages/LandingPage.jsx';
-import LoginPage from './Pages/LoginPage.jsx';
-import RegisterPage from './Pages/RegisterPage.jsx';
-import DashboardPage from './Pages/DashboardPage.jsx';
-import { USE_LOCAL_STORAGE } from './api.js';
-import { readUsers, saveBalances, toPublicAccount } from './localApi.js';
-import { withBankAccounts } from './bankAccounts.js';
-import { installmentPlan } from './creditCard.js';
+import LandingPage from './modules/landing/LandingPage.jsx';
+import LoginPage from './modules/auth/LoginPage.jsx';
+import RegisterPage from './modules/auth/RegisterPage.jsx';
+import DashboardPage from './modules/dashboard/DashboardPage.jsx';
+import { USE_LOCAL_STORAGE } from './modules/core/api/api.js';
+import { readUsers, saveBalances, toPublicAccount } from './modules/core/api/localApi.js';
+import { withBankAccounts } from './modules/accounts/bankAccounts.js';
+import { installmentPlan } from './modules/credit-card/creditCard.js';
 
 // Sesión del usuario (para que recargar /dashboard/consignar no lo saque):
 //  - modo local: en localStorage, junto con los usuarios; dura hasta cerrar sesión.

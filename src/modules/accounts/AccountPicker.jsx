@@ -1,4 +1,4 @@
-import { accountLabel } from '../bankAccounts.js'
+import { accountLabel } from './bankAccounts.js'
 
 // Selector de la cuenta con la que se hace la operación. Solo aparece si el usuario
 // tiene más de una cuenta; con una sola, esa se usa directamente.

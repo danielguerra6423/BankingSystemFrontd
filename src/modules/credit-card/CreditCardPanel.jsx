@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import AccountPicker from './AccountPicker.jsx'
-import { cancelarTarjeta, solicitarTarjeta } from '../api.js'
-import { accountLabel } from '../bankAccounts.js'
+import AccountPicker from '../accounts/AccountPicker.jsx'
+import { cancelarTarjeta, solicitarTarjeta } from '../core/api/api.js'
+import { accountLabel } from '../accounts/bankAccounts.js'
 import {
   CARD_LIMIT_MAX,
   CARD_LIMIT_MIN,
@@ -16,8 +16,8 @@ import {
   isValidInstallments,
   maskedCardNumber,
   monthlyDue,
-} from '../creditCard.js'
-import { formatMoneyInput, onlyDigits, parseMoney } from '../inputFilters.js'
+} from './creditCard.js'
+import { formatMoneyInput, onlyDigits, parseMoney } from '../core/utils/inputFilters.js'
 
 // Sección Tarjeta de crédito: solicitarla y, ya con tarjeta, comprar, pagar desde una cuenta,
 // bloquearla o cancelarla. Mismas reglas que STarjetaCredito del backend.

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { USE_LOCAL_STORAGE, registrarCuenta } from '../api.js'
-import { EMAIL_PATTERN, PHONE_PATTERN, formatMoneyInput, noSpaces, onlyAlphanumeric, onlyDigits, onlyLetters, onlyUsernameChars, parseMoney } from '../inputFilters.js'
+import { USE_LOCAL_STORAGE, registrarCuenta } from '../core/api/api.js'
+import { EMAIL_PATTERN, PHONE_PATTERN, formatMoneyInput, noSpaces, onlyAlphanumeric, onlyDigits, onlyLetters, onlyUsernameChars, parseMoney } from '../core/utils/inputFilters.js'
 
 // Formulario de registro de cuenta de demostración. Valida los datos en el frontend y luego crea la cuenta con api.js (localStorage o backend, según USE_LOCAL_STORAGE).
 export default function RegisterPage() {

@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import AccountPicker from './AccountPicker.jsx'
-import { accountLabel } from '../bankAccounts.js'
-import { PHONE_PATTERN, accountInputLength, formatAccountInput, formatAccountNumber, formatMoneyInput, onlyDigits, parseMoney } from '../inputFilters.js'
+import AccountPicker from '../accounts/AccountPicker.jsx'
+import { accountLabel } from '../accounts/bankAccounts.js'
+import { PHONE_PATTERN, accountInputLength, formatAccountInput, formatAccountNumber, formatMoneyInput, onlyDigits, parseMoney } from '../core/utils/inputFilters.js'
 
 // Transferencias en dos pasos: formulario según el tipo de destino y luego confirmación.
 // Si el usuario tiene varias cuentas, primero elige la cuenta de origen.

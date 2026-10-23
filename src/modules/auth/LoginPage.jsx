@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { iniciarSesion } from '../api.js'
+import { iniciarSesion } from '../core/api/api.js'
 
 export default function LoginPage({ onLogin }) {
   const [error, setError] = useState('')
