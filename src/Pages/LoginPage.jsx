@@ -28,7 +28,7 @@ export default function LoginPage({ onLogin }) {
       return
     }
 
-    // el backend valida la contraseña y bloquea la cuenta tras 3 intentos fallidos
+    // api.js (localStorage o backend) valida la contraseña y bloquea la cuenta tras 3 intentos fallidos
     setSending(true)
     try {
       const account = await iniciarSesion(username, password)
