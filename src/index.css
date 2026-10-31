@@ -300,6 +300,17 @@ input,select,textarea { font-family:var(--font-ui); outline:none; }
 }
 .form-control:focus { border-color:var(--green); box-shadow:0 0 0 3px var(--green-glow); }
 .form-control::placeholder { color:var(--w40); }
+
+/* Campo de contraseña con ojo para mostrarla u ocultarla */
+.password-field { position:relative; }
+.password-field .form-control.has-toggle { padding-right:44px; }
+.password-toggle {
+  position:absolute; top:50%; right:6px; transform:translateY(-50%);
+  width:32px; height:32px; display:flex; align-items:center; justify-content:center;
+  background:transparent; border-radius:var(--radius-sm); color:var(--w40); transition:var(--trans);
+}
+.password-toggle:hover { color:var(--green); background:var(--w04); }
+.password-toggle:focus-visible { color:var(--green); box-shadow:0 0 0 3px var(--green-glow); }
 .form-control option { background:var(--bg-dark); }
 .form-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
 
@@ -475,6 +486,34 @@ input,select,textarea { font-family:var(--font-ui); outline:none; }
 .btn-action.danger { background:var(--error); }
 .btn-action.danger:hover { background:#a93226; transform:none; }
 
+.btn-action + .btn-action { margin-top:10px; }
+
+/* Transferencias a terceros */
+.form-group .form-label { display:block; font-size:12px; font-weight:500; color:var(--w60); margin-bottom:7px; letter-spacing:0.3px; }
+.transfer-types { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+.transfer-type {
+  padding:10px 8px; background:var(--bg-input); border:1px solid var(--w15);
+  border-radius:var(--radius-sm); color:var(--w60); font-size:13px; font-weight:500; transition:var(--trans);
+}
+.transfer-type:hover { border-color:var(--w40); color:var(--white); }
+.transfer-type.active { background:var(--green-glow); border-color:var(--green); color:var(--green); }
+.transfer-summary { margin-bottom:16px; }
+.transfer-summary div { display:flex; justify-content:space-between; gap:12px; padding:8px 0; border-bottom:1px solid var(--w08); font-size:13px; }
+.transfer-summary dt { color:var(--w60); }
+.transfer-summary dd { color:var(--white); font-weight:500; text-align:right; }
+.transfer-summary .transfer-summary-total { border-bottom:none; padding-top:12px; }
+.transfer-summary .transfer-summary-total dd { color:var(--green); font-size:18px; font-weight:600; }
+.movements-filter { max-width:460px; }
+.saldo-stats + .open-account { margin-bottom:28px; }
+/* Tarjeta de crédito */
+.bank-card.credit-card-visual { transform:none; max-width:100%; margin-bottom:18px; }
+.bank-card.credit-card-visual:hover { transform:none; }
+.bank-card.credit-card-visual.inactive { opacity:0.55; filter:grayscale(0.6); }
+.saldo-stat-value.c-warn { color:#f39c12; }
+.card-manage-note { margin:12px 0 0; }
+.card-movements-title { margin-top:28px; }
+.transfer-note { color:var(--w40); font-size:12px; line-height:1.5; margin-bottom:14px; }
+
 .info-box {
   padding:11px 14px; border-radius:var(--radius-sm);
   font-size:13px; display:flex; align-items:flex-start; gap:8px;
@@ -491,6 +530,8 @@ input,select,textarea { font-family:var(--font-ui); outline:none; }
 .cuota-preview .cp-label { font-size:10px; color:var(--w40); text-transform:uppercase; letter-spacing:1px; }
 .cuota-preview .cp-value { font-family:var(--font-mono); font-size:26px; color:var(--green); font-weight:500; margin:4px 0; }
 .cuota-preview .cp-detail { font-size:11px; color:var(--w40); }
+.op-card .cuota-preview { margin:0 0 16px; }
+.cuota-preview .cp-detail + .cp-detail { margin-top:4px; }
 
 /* ---- Saldo panel ---- */
 .saldo-section { max-width:900px; }
@@ -627,6 +668,7 @@ input,select,textarea { font-family:var(--font-ui); outline:none; }
   .footer-grid { grid-template-columns:1fr; }
   .footer-bottom { flex-direction:column; gap:14px; text-align:center; }
   .form-row { grid-template-columns:1fr; }
+  .transfer-types { grid-template-columns:1fr; }
   .op-card { max-width:100%; }
   .saldo-stats { grid-template-columns:1fr; }
   .products-grid { grid-template-columns:1fr; }

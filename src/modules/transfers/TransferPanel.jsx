@@ -1,0 +1,306 @@
+import { useState } from 'react'
+import AccountPicker from '../accounts/AccountPicker.jsx'
+import { accountLabel, availableBalance } from '../accounts/bankAccounts.js'
+import { buscarCuentaDestino, buscarDestinoPorCelular } from '../core/api/api.js'
+import { PHONE_PATTERN, accountInputLength, formatAccountInput, formatAccountNumber, formatMoneyInput, onlyDigits, parseMoney } from '../core/utils/inputFilters.js'
+
+// Transferencias en dos pasos: formulario según el tipo de destino y luego confirmación.
+// Si el usuario tiene varias cuentas, primero elige la cuenta de origen.
+//  - entre mis cuentas (solo con varias cuentas): el destino se elige de una lista, sin
+//    escribir el número; con dos cuentas se completa solo con la otra.
+//  - celular en MiPlata: se busca el usuario por su celular; recibe en su primera cuenta.
+//  - celular en Nequi o Daviplata: no se puede validar; solo se descuenta del saldo.
+//  - ahorros / corriente en MiPlata (terceros): se busca por número de cuenta y debe
+//    coincidir el tipo. Las cuentas propias se envían a "Entre mis cuentas".
+//  - ahorros / corriente en otro banco: no se puede validar; solo se descuenta del saldo.
+
+const MIPLATA = 'MiPlata'
+const OTHER_BANKS = [
+  'Bancolombia',
+  'Banco de Bogotá',
+  'Davivienda',
+  'BBVA Colombia',
+  'Banco de Occidente',
+  'Banco Popular',
+  'Scotiabank Colpatria',
+  'Banco Caja Social',
+  'Banco AV Villas',
+  'Banco Agrario',
+]
+
+const WALLETS = ['Nequi', 'Daviplata']
+
+const OWN = 'own'
+
+const transferTypes = [
+  { id: OWN, label: 'Entre mis cuentas' },
+  { id: 'phone', label: 'Celular' },
+  { id: 'AH', label: 'Cuenta de ahorros' },
+  { id: 'CC', label: 'Cuenta corriente' },
+]
+
+const accountTypeNames = { AH: 'de ahorros', CC: 'corriente' }
+
+const OWN_ACCOUNTS_HINT = "Para mover dinero entre tus cuentas usa 'Entre mis cuentas'."
+
+export default function TransferPanel({ account, onTransfer, formatMoney }) {
+  const { bankAccounts } = account
+  const [sourceNumber, setSourceNumber] = useState(bankAccounts.length === 1 ? bankAccounts[0].accountNumber : '')
+  const source = bankAccounts.find((bankAccount) => bankAccount.accountNumber === sourceNumber)
+  const [type, setType] = useState(null)
+  const [bank, setBank] = useState(MIPLATA)
+  // transferencia validada que espera confirmación
+  const [draft, setDraft] = useState(null)
+  const [feedback, setFeedback] = useState(null)
+  // al cambiarla se reinicia el formulario después de una transferencia
+  const [formKey, setFormKey] = useState(0)
+  // esperando al backend (búsqueda del destinatario o transferencia)
+  const [sending, setSending] = useState(false)
+  const isExternal = bank !== MIPLATA
+  const hasManyAccounts = bankAccounts.length > 1
+  // "Entre mis cuentas" solo tiene sentido con dos o más cuentas
+  const availableTypes = transferTypes.filter((option) => option.id !== OWN || hasManyAccounts)
+  // cuenta propia de destino: la elegida o, por defecto, la primera distinta al origen
+  const [ownTargetNumber, setOwnTargetNumber] = useState('')
+  const ownTargets = bankAccounts.filter((bankAccount) => bankAccount.accountNumber !== sourceNumber)
+  const ownTarget = ownTargets.find((bankAccount) => bankAccount.accountNumber === ownTargetNumber) ?? ownTargets[0]
+
+  function chooseType(id) {
+    setType(id)
+    setBank(MIPLATA)
+    setOwnTargetNumber('')
+    setFeedback(null)
+    setFormKey((key) => key + 1)
+  }
+
+  // ⇄: el destino pasa a ser el origen y viceversa
+  function swapOwnAccounts() {
+    if (!source || !ownTarget) return
+    setSourceNumber(ownTarget.accountNumber)
+    setOwnTargetNumber(source.accountNumber)
+  }
+
+  // Devuelve { recipient, rows } para la confirmación, o un texto de error.
+  // Las cuentas MiPlata de destino se buscan en el backend (buscarCuentaDestino /
+  // buscarDestinoPorCelular), que responde con el titular o con el error.
+  // recipient lleva destinationType y destination, que es lo que recibe el backend.
+  async function buildRecipient(formData) {
+    if (type === OWN) {
+      if (!ownTarget) return 'Selecciona la cuenta de destino.'
+      return {
+        recipient: { username: account.username, accountNumber: ownTarget.accountNumber, destinationType: ownTarget.accountType, destination: ownTarget.accountNumber },
+        rows: [['Hacia', accountLabel(ownTarget)]],
+      }
+    }
+
+    if (type === 'phone') {
+      const phone = String(formData.get('phone')).trim()
+      if (!PHONE_PATTERN.test(phone)) return 'El celular debe tener 10 dígitos y empezar por 3.'
+      if (isExternal) {
+        return {
+          recipient: { bank, accountNumber: phone, destinationType: type, destination: phone },
+          rows: [['Celular', phone], ['Destino', bank]],
+        }
+      }
+      if (phone === account.phone) return hasManyAccounts ? OWN_ACCOUNTS_HINT : 'No puedes transferirte a tu propio celular.'
+      const target = await buscarDestinoPorCelular(phone)
+      return {
+        recipient: { username: target.username, accountNumber: target.accountNumber, destinationType: type, destination: phone },
+        rows: [['Destinatario', target.fullName], ['Celular', phone], ['Banco', MIPLATA]],
+      }
+    }
+
+    const accountNumber = String(formData.get('accountNumber')).replace(/\D/g, '')
+
+    if (!isExternal) {
+      if (!/^\d{10}$/.test(accountNumber)) return 'El número de cuenta MiPlata debe tener 10 dígitos.'
+      if (accountNumber === source.accountNumber) return 'La cuenta de destino debe ser diferente a la de origen.'
+      // las cuentas propias se manejan en "Entre mis cuentas"
+      if (bankAccounts.some((bankAccount) => bankAccount.accountNumber === accountNumber)) return OWN_ACCOUNTS_HINT
+      const target = await buscarCuentaDestino(accountNumber)
+      if (target.accountType !== type) return `El número no corresponde a una cuenta ${accountTypeNames[type]}.`
+      return {
+        recipient: { username: target.username, accountNumber, destinationType: type, destination: accountNumber },
+        rows: [['Destinatario', target.fullName], [`Cuenta ${accountTypeNames[type]}`, formatAccountNumber(accountNumber)], ['Banco', MIPLATA]],
+      }
+    }
+
+    if (!/^\d{6,20}$/.test(accountNumber)) return 'El número de cuenta debe tener entre 6 y 20 dígitos.'
+    return {
+      recipient: { bank, accountNumber, destinationType: type, destination: accountNumber },
+      rows: [[`Cuenta ${accountTypeNames[type]}`, formatAccountNumber(accountNumber)], ['Banco', bank]],
+    }
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    const formData = new FormData(event.currentTarget)
+    const amount = parseMoney(formData.get('amount'))
+
+    if (!source) {
+      setFeedback({ type: 'error', text: 'Selecciona la cuenta de origen.' })
+      return
+    }
+
+    let result
+    setSending(true)
+    try {
+      result = await buildRecipient(formData)
+    } catch (requestError) {
+      result = requestError.message
+    } finally {
+      setSending(false)
+    }
+    if (typeof result === 'string') {
+      setFeedback({ type: 'error', text: result })
+      return
+    }
+
+    if (!Number.isSafeInteger(amount) || amount <= 0) {
+      setFeedback({ type: 'error', text: 'Ingresa un monto entero mayor que cero.' })
+      return
+    }
+
+    if (amount > availableBalance(source)) {
+      setFeedback({ type: 'error', text: 'No tienes saldo suficiente para esta transferencia.' })
+      return
+    }
+
+    const fromRow = bankAccounts.length > 1 ? [['Desde', accountLabel(source)]] : []
+    setFeedback(null)
+    setDraft({ ...result, rows: [...fromRow, ...result.rows], amount, fromAccountNumber: source.accountNumber })
+  }
+
+  async function confirmTransfer() {
+    // el saldo pudo cambiar mientras se confirmaba
+    const from = bankAccounts.find((bankAccount) => bankAccount.accountNumber === draft.fromAccountNumber)
+    if (draft.amount > availableBalance(from)) {
+      setDraft(null)
+      setFeedback({ type: 'error', text: 'No tienes saldo suficiente para esta transferencia.' })
+      return
+    }
+
+    setSending(true)
+    try {
+      await onTransfer(draft.fromAccountNumber, draft.recipient, draft.amount)
+      setFormKey((key) => key + 1)
+      setFeedback({ type: 'success', text: `Transferencia de ${formatMoney(draft.amount)} realizada.` })
+    } catch (requestError) {
+      setFeedback({ type: 'error', text: requestError.message })
+    } finally {
+      setSending(false)
+      setDraft(null)
+    }
+  }
+
+  return (
+    <>
+      {source && <p className="panel-balance">Saldo disponible: <strong>{formatMoney(availableBalance(source))}</strong>{source.overdraft > 0 && ` (incluye sobregiro de ${formatMoney(source.overdraft)})`}</p>}
+      {feedback && <div className={`info-box ${feedback.type === 'error' ? 'warn' : 'info'}`} role="status">{feedback.text}</div>}
+
+      {draft && (
+        <div className="op-card">
+          <h4>Confirma la transferencia</h4>
+          <dl className="transfer-summary">
+            {draft.rows.map(([label, value]) => (
+              <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+            ))}
+            <div className="transfer-summary-total"><dt>Monto</dt><dd>{formatMoney(draft.amount)}</dd></div>
+          </dl>
+          {draft.recipient.bank && <p className="transfer-note">El dinero se descuenta de tu saldo. MiPlata no puede verificar cuentas de otras entidades.</p>}
+          <button className="btn-action" type="button" onClick={confirmTransfer} disabled={sending}>{sending ? 'Procesando...' : 'Confirmar transferencia'}</button>
+          <button className="btn-action secondary" type="button" onClick={() => setDraft(null)}>Volver</button>
+        </div>
+      )}
+
+      {/* hidden mientras se confirma: así "Volver" conserva lo que se escribió */}
+      <div className="op-card" hidden={Boolean(draft)}>
+        <h4>Enviar dinero</h4>
+        <AccountPicker id="transfer-source" label="Cuenta de origen" bankAccounts={bankAccounts} value={sourceNumber} onChange={setSourceNumber} />
+        <div className="form-group">
+          <span className="form-label" id="transfer-type-label">¿A qué tipo de cuenta envías?</span>
+          <div className="transfer-types" role="group" aria-labelledby="transfer-type-label">
+            {availableTypes.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={`transfer-type ${type === option.id ? 'active' : ''}`}
+                aria-pressed={type === option.id}
+                onClick={() => chooseType(option.id)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {type && (
+          <form key={formKey} onSubmit={handleSubmit}>
+            {type === OWN ? (
+              <div className="form-group">
+                <label htmlFor="transfer-own-target">Cuenta de destino</label>
+                {source ? (
+                  <>
+                    <select id="transfer-own-target" className="form-control" value={ownTarget?.accountNumber ?? ''} onChange={(event) => setOwnTargetNumber(event.target.value)} required>
+                      {ownTargets.map((bankAccount) => (
+                        <option key={bankAccount.accountNumber} value={bankAccount.accountNumber}>{accountLabel(bankAccount)}</option>
+                      ))}
+                    </select>
+                    <button className="btn-action secondary" type="button" onClick={swapOwnAccounts}>⇄ Invertir origen y destino</button>
+                  </>
+                ) : (
+                  <p className="transfer-note">Elige primero la cuenta de origen.</p>
+                )}
+              </div>
+            ) : type === 'phone' ? (
+              <>
+                <div className="form-group">
+                  <label htmlFor="transfer-wallet">Destino</label>
+                  <select id="transfer-wallet" className="form-control" name="bank" value={bank} onChange={(event) => setBank(event.target.value)}>
+                    <option value={MIPLATA}>{MIPLATA}</option>
+                    {WALLETS.map((name) => <option key={name} value={name}>{name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="transfer-phone">Número de celular</label>
+                  <input id="transfer-phone" className="form-control" name="phone" type="tel" inputMode="numeric" placeholder="Ej: 3001234567" minLength={10} maxLength={10} onInput={onlyDigits} required />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="form-group">
+                  <label htmlFor="transfer-bank">Banco</label>
+                  <select id="transfer-bank" className="form-control" name="bank" value={bank} onChange={(event) => setBank(event.target.value)}>
+                    <option value={MIPLATA}>{MIPLATA}</option>
+                    {OTHER_BANKS.map((name) => <option key={name} value={name}>{name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="transfer-account-number">Número de cuenta</label>
+                  <input
+                    id="transfer-account-number"
+                    className="form-control"
+                    name="accountNumber"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder={isExternal ? 'Ej: 1234-5678-9012' : '0000-0000-00'}
+                    minLength={accountInputLength(isExternal ? 6 : 10)}
+                    maxLength={accountInputLength(isExternal ? 20 : 10)}
+                    onInput={formatAccountInput}
+                    required
+                  />
+                </div>
+              </>
+            )}
+            <div className="form-group">
+              <label htmlFor="transfer-amount">Monto a transferir (COP)</label>
+              <input id="transfer-amount" className="form-control" name="amount" type="text" inputMode="numeric" autoComplete="off" placeholder="Ej: $ 50.000" onInput={formatMoneyInput} required />
+            </div>
+            <button className="btn-action" type="submit" disabled={sending}>{sending ? 'Buscando...' : 'Continuar'}</button>
+          </form>
+        )}
+      </div>
+    </>
+  )
+}
