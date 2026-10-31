@@ -300,6 +300,17 @@ input,select,textarea { font-family:var(--font-ui); outline:none; }
 }
 .form-control:focus { border-color:var(--green); box-shadow:0 0 0 3px var(--green-glow); }
 .form-control::placeholder { color:var(--w40); }
+
+/* Campo de contraseña con ojo para mostrarla u ocultarla */
+.password-field { position:relative; }
+.password-field .form-control.has-toggle { padding-right:44px; }
+.password-toggle {
+  position:absolute; top:50%; right:6px; transform:translateY(-50%);
+  width:32px; height:32px; display:flex; align-items:center; justify-content:center;
+  background:transparent; border-radius:var(--radius-sm); color:var(--w40); transition:var(--trans);
+}
+.password-toggle:hover { color:var(--green); background:var(--w04); }
+.password-toggle:focus-visible { color:var(--green); box-shadow:0 0 0 3px var(--green-glow); }
 .form-control option { background:var(--bg-dark); }
 .form-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
 

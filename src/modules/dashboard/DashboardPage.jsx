@@ -4,6 +4,7 @@ import { abrirCuenta, actualizarContacto, cambiarClave } from '../core/api/api.j
 import { ACCOUNT_TYPE_NAMES, accountLabel, shortAccountLabel } from '../accounts/bankAccounts.js'
 import { EMAIL_PATTERN, PHONE_PATTERN, formatAccountNumber, formatMoneyInput, noSpaces, onlyDigits, parseMoney } from '../core/utils/inputFilters.js'
 import AccountPicker from '../accounts/AccountPicker.jsx'
+import PasswordInput from '../core/components/PasswordInput.jsx'
 import CreditCardPanel from '../credit-card/CreditCardPanel.jsx'
 import TransferPanel from '../transfers/TransferPanel.jsx'
 
@@ -47,9 +48,14 @@ export default function DashboardPage({ account, accounts, onDeposit, onWithdraw
   // mensajes y estado de envío de los formularios del perfil: 'contact' y 'password'
   const [profileFeedback, setProfileFeedback] = useState({})
   const [savingProfile, setSavingProfile] = useState(null)
+  // claves visibles en "Cambiar clave": la actual y la nueva (la nueva incluye su confirmación)
+  const [showPasswords, setShowPasswords] = useState({ current: false, new: false })
+  const togglePassword = (field) => setShowPasswords((shown) => ({ ...shown, [field]: !shown[field] }))
   // cuenta elegida en Consignar, Retirar o Movimientos; se olvida al cambiar de sección
   const [picked, setPicked] = useState(null)
   const [openingAccount, setOpeningAccount] = useState(false)
+  // consignación o retiro esperando la respuesta del backend
+  const [sendingAmount, setSendingAmount] = useState(false)
   const navigate = useNavigate()
   const activeItem = navigation.find((item) => item.path === section)
   const activePanel = activeItem?.id
@@ -142,6 +148,7 @@ export default function DashboardPage({ account, accounts, onDeposit, onWithdraw
     try {
       await cambiarClave(account.username, currentPassword, newPassword)
       form.reset()
+      setShowPasswords({ current: false, new: false })
       showProfileMessage('password', 'success', 'Clave actualizada. Úsala la próxima vez que inicies sesión.')
     } catch (requestError) {
       showProfileMessage('password', 'error', requestError.message)
@@ -181,7 +188,7 @@ export default function DashboardPage({ account, accounts, onDeposit, onWithdraw
     }
   }
 
-  function submitAmount(event, operation) {
+  async function submitAmount(event, operation) {
     event.preventDefault()
     const form = event.currentTarget
     const amount = parseMoney(new FormData(form).get('amount'))
@@ -201,10 +208,18 @@ export default function DashboardPage({ account, accounts, onDeposit, onWithdraw
       return
     }
 
-    if (operation === 'deposit') onDeposit(pickedAccount.accountNumber, amount)
-    if (operation === 'withdraw') onWithdraw(pickedAccount.accountNumber, amount)
-    setFeedback({ type: 'success', text: operation === 'deposit' ? 'Consignación realizada.' : 'Retiro realizado.' })
-    form.reset()
+    // el saldo solo cambia en pantalla si el backend guardó la operación
+    setSendingAmount(true)
+    try {
+      if (operation === 'deposit') await onDeposit(pickedAccount.accountNumber, amount)
+      if (operation === 'withdraw') await onWithdraw(pickedAccount.accountNumber, amount)
+      setFeedback({ type: 'success', text: operation === 'deposit' ? 'Consignación realizada.' : 'Retiro realizado.' })
+      form.reset()
+    } catch (requestError) {
+      setFeedback({ type: 'error', text: requestError.message })
+    } finally {
+      setSendingAmount(false)
+    }
   }
 
   function handleLogout() {
@@ -268,7 +283,7 @@ export default function DashboardPage({ account, accounts, onDeposit, onWithdraw
               required
             />
           </div>
-          <button className="btn-action" type="submit">{isDeposit ? 'Consignar' : 'Retirar'}</button>
+          <button className="btn-action" type="submit" disabled={sendingAmount}>{sendingAmount ? 'Procesando...' : isDeposit ? 'Consignar' : 'Retirar'}</button>
         </form>
       </section>
     )
@@ -343,15 +358,16 @@ export default function DashboardPage({ account, accounts, onDeposit, onWithdraw
               {renderProfileMessage('password')}
               <div className="form-group">
                 <label htmlFor="profile-current-password">Clave actual</label>
-                <input id="profile-current-password" className="form-control" name="currentPassword" type="password" autoComplete="current-password" maxLength={50} required />
+                <PasswordInput id="profile-current-password" name="currentPassword" autoComplete="current-password" maxLength={50} required visible={showPasswords.current} onToggle={() => togglePassword('current')} />
               </div>
               <div className="form-group">
                 <label htmlFor="profile-new-password">Nueva clave</label>
-                <input id="profile-new-password" className="form-control" name="newPassword" type="password" autoComplete="new-password" placeholder="Mínimo 4 caracteres" minLength={4} maxLength={50} required />
+                <PasswordInput id="profile-new-password" name="newPassword" autoComplete="new-password" placeholder="Mínimo 4 caracteres" minLength={4} maxLength={50} required visible={showPasswords.new} onToggle={() => togglePassword('new')} />
               </div>
               <div className="form-group">
                 <label htmlFor="profile-new-password-confirmation">Confirmar nueva clave</label>
-                <input id="profile-new-password-confirmation" className="form-control" name="newPasswordConfirmation" type="password" autoComplete="new-password" placeholder="Repite la nueva clave" minLength={4} maxLength={50} required />
+                {/* sin ojo propio: se muestra u oculta junto con la nueva clave */}
+                <PasswordInput id="profile-new-password-confirmation" name="newPasswordConfirmation" autoComplete="new-password" placeholder="Repite la nueva clave" minLength={4} maxLength={50} required visible={showPasswords.new} />
               </div>
               <button className="btn-action" type="submit" disabled={savingProfile === 'password'}>{savingProfile === 'password' ? 'Guardando...' : 'Cambiar clave'}</button>
             </form>

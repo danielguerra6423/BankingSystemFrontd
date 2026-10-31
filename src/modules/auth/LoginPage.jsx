@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { iniciarSesion } from '../core/api/api.js'
+import PasswordInput from '../core/components/PasswordInput.jsx'
 
 export default function LoginPage({ onLogin }) {
   const [error, setError] = useState('')
   const [sending, setSending] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
   const [registered, setRegistered] = useState(Boolean(location.state?.registered))
@@ -65,7 +67,7 @@ export default function LoginPage({ onLogin }) {
             </div>
             <div className="form-group">
               <label htmlFor="login-password">Contraseña</label>
-              <input id="login-password" className="form-control" name="password" type="password" autoComplete="current-password" placeholder="Contraseña" minLength={4} required />
+              <PasswordInput id="login-password" name="password" autoComplete="current-password" placeholder="Contraseña" minLength={4} required visible={showPassword} onToggle={() => setShowPassword((shown) => !shown)} />
             </div>
             <button className="btn-submit" type="submit" disabled={sending}>{sending ? 'Ingresando...' : 'Iniciar sesión'}</button>
           </form>

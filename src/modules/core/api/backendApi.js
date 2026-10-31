@@ -38,16 +38,59 @@ export function cambiarClave(username, currentPassword, newPassword) {
   return request('PUT', '/perfil/clave', { username, currentPassword, newPassword })
 }
 
-// el backend todavía no maneja varias cuentas por usuario
-export async function abrirCuenta() {
-  throw new Error('Abrir otra cuenta aún no está disponible con la base de datos.')
+// Todas las operaciones devuelven el usuario completo actualizado
+// (bankAccounts con saldos y movimientos, y creditCard o null).
+
+// Abre otra cuenta: máximo una de ahorros (AH) y una corriente (CC)
+export function abrirCuenta(username, accountType, balance) {
+  return request('POST', '/cuentas', { username, accountType, balance })
 }
 
-// STarjetaCredito existe en el backend, pero todavía no tiene endpoints (controlador)
-export async function solicitarTarjeta() {
-  throw new Error('La tarjeta de crédito aún no está disponible con la base de datos.')
+// Titular de una cuenta MiPlata: { fullName, username, accountType, accountNumber }
+export function buscarCuentaDestino(accountNumber) {
+  return request('GET', `/cuentas/destino?numero=${encodeURIComponent(accountNumber)}`)
 }
 
-export async function cancelarTarjeta() {
-  throw new Error('La tarjeta de crédito aún no está disponible con la base de datos.')
+export function buscarDestinoPorCelular(phone) {
+  return request('GET', `/cuentas/destino-celular?celular=${encodeURIComponent(phone)}`)
+}
+
+export function consignar(username, accountNumber, amount) {
+  return request('POST', '/movimientos/consignar', { username, accountNumber, amount })
+}
+
+export function retirar(username, accountNumber, amount) {
+  return request('POST', '/movimientos/retirar', { username, accountNumber, amount })
+}
+
+// recipient: { destinationType: 'phone' | 'AH' | 'CC', bank (MiPlata, otro banco o billetera), destination }
+export function transferir(username, fromAccountNumber, recipient, amount) {
+  return request('POST', '/movimientos/transferir', {
+    username,
+    fromAccountNumber,
+    amount,
+    destinationType: recipient.destinationType,
+    bank: recipient.bank ?? 'MiPlata',
+    destination: recipient.destination,
+  })
+}
+
+export function solicitarTarjeta(username, accountNumber, limit) {
+  return request('POST', '/tarjeta/solicitar', { username, accountNumber, limit })
+}
+
+export function comprarConTarjeta(username, merchant, amount, installments) {
+  return request('POST', '/tarjeta/compra', { username, merchant, amount, installments })
+}
+
+export function pagarTarjeta(username, fromAccountNumber, amount) {
+  return request('POST', '/tarjeta/pago', { username, fromAccountNumber, amount })
+}
+
+export function bloquearTarjeta(username) {
+  return request('PUT', '/tarjeta/bloquear', { username })
+}
+
+export function cancelarTarjeta(username) {
+  return request('POST', '/tarjeta/cancelar', { username })
 }
