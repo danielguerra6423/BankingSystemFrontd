@@ -1,12 +1,11 @@
 import { useState } from 'react'
 import AccountPicker from '../accounts/AccountPicker.jsx'
 import { cancelarTarjeta, solicitarTarjeta } from '../core/api/api.js'
-import { accountLabel } from '../accounts/bankAccounts.js'
+import { accountLabel, availableBalance } from '../accounts/bankAccounts.js'
 import {
   CARD_LIMIT_MAX,
   CARD_LIMIT_MIN,
-  INTEREST_FREE_INSTALLMENTS,
-  MAX_INSTALLMENTS,
+  INSTALLMENT_OPTIONS,
   MONTHLY_RATE,
   availableCredit,
   cardExpiry,
@@ -17,7 +16,7 @@ import {
   maskedCardNumber,
   monthlyDue,
 } from './creditCard.js'
-import { formatMoneyInput, onlyDigits, parseMoney } from '../core/utils/inputFilters.js'
+import { formatMoneyInput, parseMoney } from '../core/utils/inputFilters.js'
 
 // Sección Tarjeta de crédito: solicitarla y, ya con tarjeta, comprar, pagar desde una cuenta,
 // bloquearla o cancelarla. Mismas reglas que STarjetaCredito del backend.
@@ -106,7 +105,7 @@ export default function CreditCardPanel({ account, formatMoney, onIssued, onPurc
     }
 
     if (!isValidInstallments(installments)) {
-      showMessage('purchase', 'error', `El número de cuotas debe estar entre 1 y ${MAX_INSTALLMENTS}.`)
+      showMessage('purchase', 'error', 'Selecciona el número de cuotas.')
       return
     }
 
@@ -149,7 +148,7 @@ export default function CreditCardPanel({ account, formatMoney, onIssued, onPurc
       return
     }
 
-    if (amount > payFrom.balance) {
+    if (amount > availableBalance(payFrom)) {
       showMessage('payment', 'error', 'No tienes saldo suficiente en esa cuenta.')
       return
     }
@@ -267,9 +266,17 @@ export default function CreditCardPanel({ account, formatMoney, onIssued, onPurc
               </div>
               <div className="form-group">
                 <label htmlFor="card-installments">Número de cuotas</label>
-                <input id="card-installments" className="form-control" name="installments" type="text" inputMode="numeric" autoComplete="off" placeholder={`De 1 a ${MAX_INSTALLMENTS}`} defaultValue="1" maxLength={2} onInput={onlyDigits} required />
+                {/* sin opción marcada: el usuario debe elegir las cuotas en cada compra */}
+                <select id="card-installments" className="form-control" name="installments" defaultValue="" required>
+                  <option value="" disabled>Selecciona el número de cuotas</option>
+                  {INSTALLMENT_OPTIONS.map((count) => (
+                    <option key={count} value={count}>
+                      {count === 1 ? '1 cuota · sin interés' : `${count} cuotas · ${formatRate(MONTHLY_RATE)} mensual`}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <p className="transfer-note">Hasta {INTEREST_FREE_INSTALLMENTS} cuotas sin interés. Desde {INTEREST_FREE_INSTALLMENTS + 1} cuotas, interés del {formatRate(MONTHLY_RATE)} mensual.</p>
+              <p className="transfer-note">1 cuota sin interés. A 3, 6, 12, 24 o 36 cuotas, interés del {formatRate(MONTHLY_RATE)} mensual con cuota fija.</p>
               {purchasePlan && (
                 <div className="cuota-preview">
                   <div className="cp-label">Cuota mensual</div>
@@ -293,7 +300,7 @@ export default function CreditCardPanel({ account, formatMoney, onIssued, onPurc
           {card.debt > 0 ? (
             <>
               <AccountPicker id="card-pay-from" label="Pagar desde" bankAccounts={bankAccounts} value={payFromNumber} onChange={setPayFromNumber} />
-              {payFrom && <p className="panel-balance">Saldo disponible: <strong>{formatMoney(payFrom.balance)}</strong></p>}
+              {payFrom && <p className="panel-balance">Saldo disponible: <strong>{formatMoney(availableBalance(payFrom))}</strong>{payFrom.overdraft > 0 && ` (incluye sobregiro de ${formatMoney(payFrom.overdraft)})`}</p>}
               <div className="form-group">
                 <label htmlFor="card-payment-amount">Monto a pagar (COP)</label>
                 <input id="card-payment-amount" className="form-control" name="amount" type="text" inputMode="numeric" autoComplete="off" placeholder={`Deuda: ${formatMoney(card.debt)}`} onInput={formatMoneyInput} required />
