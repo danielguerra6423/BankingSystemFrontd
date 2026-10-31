@@ -88,7 +88,7 @@ export default function CreditCardPanel({ account, formatMoney, onIssued, onPurc
     setPurchasePlan(capital > 0 && isValidInstallments(count) ? installmentPlan(capital, count) : null)
   }
 
-  function submitPurchase(event) {
+  async function submitPurchase(event) {
     event.preventDefault()
     const form = event.currentTarget
     const merchant = String(new FormData(form).get('merchant')).trim().replace(/\s+/g, ' ')
@@ -116,13 +116,20 @@ export default function CreditCardPanel({ account, formatMoney, onIssued, onPurc
       return
     }
 
-    onPurchase(merchant, amount, installments)
-    showMessage('purchase', 'success', `Compra en ${merchant}: ${installments} ${installments === 1 ? 'cuota' : 'cuotas'} de ${formatMoney(plan.payment)} (total ${formatMoney(plan.total)}).`)
-    form.reset()
-    setPurchasePlan(null)
+    setSending(true)
+    try {
+      await onPurchase(merchant, amount, installments)
+      showMessage('purchase', 'success', `Compra en ${merchant}: ${installments} ${installments === 1 ? 'cuota' : 'cuotas'} de ${formatMoney(plan.payment)} (total ${formatMoney(plan.total)}).`)
+      form.reset()
+      setPurchasePlan(null)
+    } catch (requestError) {
+      showMessage('purchase', 'error', requestError.message)
+    } finally {
+      setSending(false)
+    }
   }
 
-  function submitPayment(event) {
+  async function submitPayment(event) {
     event.preventDefault()
     const form = event.currentTarget
     const amount = readAmount(form)
@@ -147,15 +154,29 @@ export default function CreditCardPanel({ account, formatMoney, onIssued, onPurc
       return
     }
 
-    onPayment(payFrom.accountNumber, amount)
-    showMessage('payment', 'success', `Pago de ${formatMoney(amount)} realizado.`)
-    form.reset()
+    setSending(true)
+    try {
+      await onPayment(payFrom.accountNumber, amount)
+      showMessage('payment', 'success', `Pago de ${formatMoney(amount)} realizado.`)
+      form.reset()
+    } catch (requestError) {
+      showMessage('payment', 'error', requestError.message)
+    } finally {
+      setSending(false)
+    }
   }
 
-  function confirmBlock() {
-    onBlock()
-    setConfirming(null)
-    showMessage('manage', 'success', 'Tarjeta bloqueada. Ya no permite compras.')
+  async function confirmBlock() {
+    setSending(true)
+    try {
+      await onBlock()
+      showMessage('manage', 'success', 'Tarjeta bloqueada. Ya no permite compras.')
+    } catch (requestError) {
+      showMessage('manage', 'error', requestError.message)
+    } finally {
+      setSending(false)
+      setConfirming(null)
+    }
   }
 
   async function confirmCancel() {
@@ -259,7 +280,7 @@ export default function CreditCardPanel({ account, formatMoney, onIssued, onPurc
                   <div className="cp-detail">Intereses: {formatMoney(purchasePlan.interest)} · Total a pagar: {formatMoney(purchasePlan.total)}</div>
                 </div>
               )}
-              <button className="btn-action" type="submit">Registrar compra</button>
+              <button className="btn-action" type="submit" disabled={sending}>{sending ? 'Procesando...' : 'Registrar compra'}</button>
             </>
           ) : (
             <p className="dashboard-empty">La tarjeta está {status.toLowerCase()}: no permite compras.</p>
@@ -286,7 +307,7 @@ export default function CreditCardPanel({ account, formatMoney, onIssued, onPurc
                   Pagar cuota del mes ({formatMoney(due)})
                 </button>
               )}
-              <button className="btn-action" type="submit">Pagar</button>
+              <button className="btn-action" type="submit" disabled={sending}>{sending ? 'Procesando...' : 'Pagar'}</button>
             </>
           ) : (
             <p className="dashboard-empty">No tienes deuda pendiente.</p>
@@ -301,7 +322,7 @@ export default function CreditCardPanel({ account, formatMoney, onIssued, onPurc
           {confirming === 'block' && (
             <>
               <p className="transfer-note">Una tarjeta bloqueada no se puede desbloquear. Podrás seguir pagando la deuda.</p>
-              <button className="btn-action danger" type="button" onClick={confirmBlock}>Sí, bloquear tarjeta</button>
+              <button className="btn-action danger" type="button" onClick={confirmBlock} disabled={sending}>{sending ? 'Bloqueando...' : 'Sí, bloquear tarjeta'}</button>
               <button className="btn-action secondary" type="button" onClick={() => setConfirming(null)}>Volver</button>
             </>
           )}

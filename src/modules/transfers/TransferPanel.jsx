@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import AccountPicker from '../accounts/AccountPicker.jsx'
 import { accountLabel } from '../accounts/bankAccounts.js'
+import { buscarCuentaDestino, buscarDestinoPorCelular } from '../core/api/api.js'
 import { PHONE_PATTERN, accountInputLength, formatAccountInput, formatAccountNumber, formatMoneyInput, onlyDigits, parseMoney } from '../core/utils/inputFilters.js'
 
 // Transferencias en dos pasos: formulario según el tipo de destino y luego confirmación.
@@ -35,7 +36,7 @@ const transferTypes = [
 
 const accountTypeNames = { AH: 'de ahorros', CC: 'corriente' }
 
-export default function TransferPanel({ account, accounts, onTransfer, formatMoney }) {
+export default function TransferPanel({ account, onTransfer, formatMoney }) {
   const { bankAccounts } = account
   const [sourceNumber, setSourceNumber] = useState(bankAccounts.length === 1 ? bankAccounts[0].accountNumber : '')
   const source = bankAccounts.find((bankAccount) => bankAccount.accountNumber === sourceNumber)
@@ -46,6 +47,8 @@ export default function TransferPanel({ account, accounts, onTransfer, formatMon
   const [feedback, setFeedback] = useState(null)
   // al cambiarla se reinicia el formulario después de una transferencia
   const [formKey, setFormKey] = useState(0)
+  // esperando al backend (búsqueda del destinatario o transferencia)
+  const [sending, setSending] = useState(false)
   const isExternal = bank !== MIPLATA
 
   function chooseType(id) {
@@ -55,22 +58,24 @@ export default function TransferPanel({ account, accounts, onTransfer, formatMon
     setFormKey((key) => key + 1)
   }
 
-  // Devuelve { recipient, rows } para la confirmación, o un texto de error
-  function buildRecipient(formData) {
+  // Devuelve { recipient, rows } para la confirmación, o un texto de error.
+  // Las cuentas MiPlata de destino se buscan en el backend (buscarCuentaDestino /
+  // buscarDestinoPorCelular), que responde con el titular o con el error.
+  // recipient lleva destinationType y destination, que es lo que recibe el backend.
+  async function buildRecipient(formData) {
     if (type === 'phone') {
       const phone = String(formData.get('phone')).trim()
       if (!PHONE_PATTERN.test(phone)) return 'El celular debe tener 10 dígitos y empezar por 3.'
       if (isExternal) {
         return {
-          recipient: { bank, accountNumber: phone },
+          recipient: { bank, accountNumber: phone, destinationType: type, destination: phone },
           rows: [['Celular', phone], ['Destino', bank]],
         }
       }
       if (phone === account.phone) return 'No puedes transferirte a tu propio celular. Para mover dinero entre tus cuentas usa el número de cuenta.'
-      const target = accounts.find((candidate) => candidate.phone === phone && candidate.username !== account.username)
-      if (!target) return 'No hay una cuenta MiPlata registrada con ese celular.'
+      const target = await buscarDestinoPorCelular(phone)
       return {
-        recipient: { username: target.username, accountNumber: target.bankAccounts[0].accountNumber },
+        recipient: { username: target.username, accountNumber: target.accountNumber, destinationType: type, destination: phone },
         rows: [['Destinatario', target.fullName], ['Celular', phone], ['Banco', MIPLATA]],
       }
     }
@@ -80,24 +85,22 @@ export default function TransferPanel({ account, accounts, onTransfer, formatMon
     if (!isExternal) {
       if (!/^\d{10}$/.test(accountNumber)) return 'El número de cuenta MiPlata debe tener 10 dígitos.'
       if (accountNumber === source.accountNumber) return 'La cuenta de destino debe ser diferente a la de origen.'
-      const target = accounts.find((candidate) => candidate.bankAccounts.some((bankAccount) => bankAccount.accountNumber === accountNumber))
-      if (!target) return 'No encontramos una cuenta MiPlata con ese número.'
-      const targetAccount = target.bankAccounts.find((bankAccount) => bankAccount.accountNumber === accountNumber)
-      if (targetAccount.accountType !== type) return `El número no corresponde a una cuenta ${accountTypeNames[type]}.`
+      const target = await buscarCuentaDestino(accountNumber)
+      if (target.accountType !== type) return `El número no corresponde a una cuenta ${accountTypeNames[type]}.`
       return {
-        recipient: { username: target.username, accountNumber },
+        recipient: { username: target.username, accountNumber, destinationType: type, destination: accountNumber },
         rows: [['Destinatario', target.username === account.username ? 'Tu cuenta' : target.fullName], [`Cuenta ${accountTypeNames[type]}`, formatAccountNumber(accountNumber)], ['Banco', MIPLATA]],
       }
     }
 
     if (!/^\d{6,20}$/.test(accountNumber)) return 'El número de cuenta debe tener entre 6 y 20 dígitos.'
     return {
-      recipient: { bank, accountNumber },
+      recipient: { bank, accountNumber, destinationType: type, destination: accountNumber },
       rows: [[`Cuenta ${accountTypeNames[type]}`, formatAccountNumber(accountNumber)], ['Banco', bank]],
     }
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
     const formData = new FormData(event.currentTarget)
     const amount = parseMoney(formData.get('amount'))
@@ -107,7 +110,15 @@ export default function TransferPanel({ account, accounts, onTransfer, formatMon
       return
     }
 
-    const result = buildRecipient(formData)
+    let result
+    setSending(true)
+    try {
+      result = await buildRecipient(formData)
+    } catch (requestError) {
+      result = requestError.message
+    } finally {
+      setSending(false)
+    }
     if (typeof result === 'string') {
       setFeedback({ type: 'error', text: result })
       return
@@ -128,7 +139,7 @@ export default function TransferPanel({ account, accounts, onTransfer, formatMon
     setDraft({ ...result, rows: [...fromRow, ...result.rows], amount, fromAccountNumber: source.accountNumber })
   }
 
-  function confirmTransfer() {
+  async function confirmTransfer() {
     // el saldo pudo cambiar mientras se confirmaba
     const from = bankAccounts.find((bankAccount) => bankAccount.accountNumber === draft.fromAccountNumber)
     if (draft.amount > from.balance) {
@@ -137,10 +148,17 @@ export default function TransferPanel({ account, accounts, onTransfer, formatMon
       return
     }
 
-    onTransfer(draft.fromAccountNumber, draft.recipient, draft.amount)
-    setDraft(null)
-    setFormKey((key) => key + 1)
-    setFeedback({ type: 'success', text: `Transferencia de ${formatMoney(draft.amount)} realizada.` })
+    setSending(true)
+    try {
+      await onTransfer(draft.fromAccountNumber, draft.recipient, draft.amount)
+      setFormKey((key) => key + 1)
+      setFeedback({ type: 'success', text: `Transferencia de ${formatMoney(draft.amount)} realizada.` })
+    } catch (requestError) {
+      setFeedback({ type: 'error', text: requestError.message })
+    } finally {
+      setSending(false)
+      setDraft(null)
+    }
   }
 
   return (
@@ -158,7 +176,7 @@ export default function TransferPanel({ account, accounts, onTransfer, formatMon
             <div className="transfer-summary-total"><dt>Monto</dt><dd>{formatMoney(draft.amount)}</dd></div>
           </dl>
           {draft.recipient.bank && <p className="transfer-note">El dinero se descuenta de tu saldo. MiPlata no puede verificar cuentas de otras entidades.</p>}
-          <button className="btn-action" type="button" onClick={confirmTransfer}>Confirmar transferencia</button>
+          <button className="btn-action" type="button" onClick={confirmTransfer} disabled={sending}>{sending ? 'Procesando...' : 'Confirmar transferencia'}</button>
           <button className="btn-action secondary" type="button" onClick={() => setDraft(null)}>Volver</button>
         </div>
       )}
@@ -231,7 +249,7 @@ export default function TransferPanel({ account, accounts, onTransfer, formatMon
               <label htmlFor="transfer-amount">Monto a transferir (COP)</label>
               <input id="transfer-amount" className="form-control" name="amount" type="text" inputMode="numeric" autoComplete="off" placeholder="Ej: $ 50.000" onInput={formatMoneyInput} required />
             </div>
-            <button className="btn-action" type="submit">Continuar</button>
+            <button className="btn-action" type="submit" disabled={sending}>{sending ? 'Buscando...' : 'Continuar'}</button>
           </form>
         )}
       </div>

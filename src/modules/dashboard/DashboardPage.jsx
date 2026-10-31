@@ -50,6 +50,8 @@ export default function DashboardPage({ account, accounts, onDeposit, onWithdraw
   // cuenta elegida en Consignar, Retirar o Movimientos; se olvida al cambiar de sección
   const [picked, setPicked] = useState(null)
   const [openingAccount, setOpeningAccount] = useState(false)
+  // consignación o retiro esperando la respuesta del backend
+  const [sendingAmount, setSendingAmount] = useState(false)
   const navigate = useNavigate()
   const activeItem = navigation.find((item) => item.path === section)
   const activePanel = activeItem?.id
@@ -181,7 +183,7 @@ export default function DashboardPage({ account, accounts, onDeposit, onWithdraw
     }
   }
 
-  function submitAmount(event, operation) {
+  async function submitAmount(event, operation) {
     event.preventDefault()
     const form = event.currentTarget
     const amount = parseMoney(new FormData(form).get('amount'))
@@ -201,10 +203,18 @@ export default function DashboardPage({ account, accounts, onDeposit, onWithdraw
       return
     }
 
-    if (operation === 'deposit') onDeposit(pickedAccount.accountNumber, amount)
-    if (operation === 'withdraw') onWithdraw(pickedAccount.accountNumber, amount)
-    setFeedback({ type: 'success', text: operation === 'deposit' ? 'Consignación realizada.' : 'Retiro realizado.' })
-    form.reset()
+    // el saldo solo cambia en pantalla si el backend guardó la operación
+    setSendingAmount(true)
+    try {
+      if (operation === 'deposit') await onDeposit(pickedAccount.accountNumber, amount)
+      if (operation === 'withdraw') await onWithdraw(pickedAccount.accountNumber, amount)
+      setFeedback({ type: 'success', text: operation === 'deposit' ? 'Consignación realizada.' : 'Retiro realizado.' })
+      form.reset()
+    } catch (requestError) {
+      setFeedback({ type: 'error', text: requestError.message })
+    } finally {
+      setSendingAmount(false)
+    }
   }
 
   function handleLogout() {
@@ -268,7 +278,7 @@ export default function DashboardPage({ account, accounts, onDeposit, onWithdraw
               required
             />
           </div>
-          <button className="btn-action" type="submit">{isDeposit ? 'Consignar' : 'Retirar'}</button>
+          <button className="btn-action" type="submit" disabled={sendingAmount}>{sendingAmount ? 'Procesando...' : isDeposit ? 'Consignar' : 'Retirar'}</button>
         </form>
       </section>
     )

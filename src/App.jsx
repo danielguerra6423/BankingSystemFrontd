@@ -4,7 +4,7 @@ import LandingPage from './modules/landing/LandingPage.jsx';
 import LoginPage from './modules/auth/LoginPage.jsx';
 import RegisterPage from './modules/auth/RegisterPage.jsx';
 import DashboardPage from './modules/dashboard/DashboardPage.jsx';
-import { USE_LOCAL_STORAGE } from './modules/core/api/api.js';
+import { USE_LOCAL_STORAGE, bloquearTarjeta, comprarConTarjeta, consignar, pagarTarjeta, retirar, transferir } from './modules/core/api/api.js';
 import { readUsers, saveBalances, toPublicAccount } from './modules/core/api/localApi.js';
 import { withBankAccounts } from './modules/accounts/bankAccounts.js';
 import { installmentPlan } from './modules/credit-card/creditCard.js';
@@ -90,17 +90,38 @@ export default function App() {
     }
   }, [accounts, currentUsername]);
 
-  function handleDeposit(username, accountNumber, amount) {
+  // Modo base de datos: el backend guarda la operación y devuelve el usuario
+  // actualizado, que reemplaza al de memoria (saldos, movimientos y tarjeta).
+  // Las operaciones son async: si el backend responde con error, lo lanzan
+  // y la sección que las llamó muestra el mensaje sin cambiar nada.
+  function replaceAccount(updated) {
+    setAccounts((current) => current.map((account) => (account.username === updated.username ? withBankAccounts(updated) : account)));
+  }
+
+  async function handleDeposit(username, accountNumber, amount) {
+    if (!USE_LOCAL_STORAGE) {
+      replaceAccount(await consignar(username, accountNumber, amount));
+      return;
+    }
     setAccounts((current) => addMovement(current, username, accountNumber, newMovement('deposit', 'Consignación', amount)));
   }
 
-  function handleWithdraw(username, accountNumber, amount) {
+  async function handleWithdraw(username, accountNumber, amount) {
+    if (!USE_LOCAL_STORAGE) {
+      replaceAccount(await retirar(username, accountNumber, amount));
+      return;
+    }
     setAccounts((current) => addMovement(current, username, accountNumber, newMovement('withdrawal', 'Retiro', amount)));
   }
 
   // recipient: { username, accountNumber } si es una cuenta MiPlata (puede ser otra del mismo usuario),
   // o { bank, accountNumber } si es de otra entidad (en ese caso solo se descuenta el saldo de quien envía).
-  function handleTransfer(fromUsername, fromAccountNumber, recipient, amount) {
+  // Además trae destinationType ('phone', 'AH' o 'CC') y destination, que es lo que recibe el backend.
+  async function handleTransfer(fromUsername, fromAccountNumber, recipient, amount) {
+    if (!USE_LOCAL_STORAGE) {
+      replaceAccount(await transferir(fromUsername, fromAccountNumber, recipient, amount));
+      return;
+    }
     const isOwn = recipient.username === fromUsername;
     const last4 = (number) => `****${number.slice(-4)}`;
     let outDescription = `Transferencia a ${recipient.bank} ${last4(recipient.accountNumber)}`;
@@ -129,35 +150,54 @@ export default function App() {
     }));
   }
 
-  // Tarjeta de crédito: solicitarla y cancelarla las guarda localApi.js; compras, pagos
-  // y bloqueo se aplican aquí y se guardan con saveBalances, igual que los saldos.
+  // Tarjeta de crédito. Modo base de datos: todo lo guarda el backend. Modo local:
+  // solicitarla y cancelarla las guarda localApi.js; compras, pagos y bloqueo se
+  // aplican aquí y se guardan con saveBalances, igual que los saldos.
   const cardActions = {
-    onIssued: (updated) => setAccounts((current) => current.map((account) => (
+    onIssued: (updated) => (USE_LOCAL_STORAGE ? setAccounts((current) => current.map((account) => (
       account.username === updated.username && !account.creditCard ? { ...account, creditCard: updated.creditCard } : account
-    ))),
+    ))) : replaceAccount(updated)),
     // la deuda sube por el total con intereses de la compra a cuotas
-    onPurchase: (merchant, capital, installments) => setAccounts((current) => updateCard(current, currentUsername, (card) => {
-      const plan = installmentPlan(capital, installments);
-      return addCardMovement(card, {
-        ...newMovement('card-purchase', `Compra en ${merchant}`, plan.total),
-        capital,
-        installments,
-        monthlyPayment: plan.payment,
-        remaining: plan.total,
-      });
-    })),
-    // el pago se descuenta de la cuenta elegida y se resta de la deuda
-    onPayment: (fromAccountNumber, amount) => setAccounts((current) => {
-      const card = current.find((account) => account.username === currentUsername).creditCard;
-      const payment = newMovement('card-payment', `Pago tarjeta de crédito ****${card.cardNumber.slice(-4)}`, amount);
-      const paid = addMovement(current, currentUsername, fromAccountNumber, payment);
-      return updateCard(paid, currentUsername, (paidCard) => addCardMovement(paidCard, {
-        ...payment,
-        id: `${payment.id}-tc`,
-        description: `Pago desde cuenta ****${fromAccountNumber.slice(-4)}`,
+    onPurchase: async (merchant, capital, installments) => {
+      if (!USE_LOCAL_STORAGE) {
+        replaceAccount(await comprarConTarjeta(currentUsername, merchant, capital, installments));
+        return;
+      }
+      setAccounts((current) => updateCard(current, currentUsername, (card) => {
+        const plan = installmentPlan(capital, installments);
+        return addCardMovement(card, {
+          ...newMovement('card-purchase', `Compra en ${merchant}`, plan.total),
+          capital,
+          installments,
+          monthlyPayment: plan.payment,
+          remaining: plan.total,
+        });
       }));
-    }),
-    onBlock: () => setAccounts((current) => updateCard(current, currentUsername, (card) => ({ ...card, active: false }))),
+    },
+    // el pago se descuenta de la cuenta elegida y se resta de la deuda
+    onPayment: async (fromAccountNumber, amount) => {
+      if (!USE_LOCAL_STORAGE) {
+        replaceAccount(await pagarTarjeta(currentUsername, fromAccountNumber, amount));
+        return;
+      }
+      setAccounts((current) => {
+        const card = current.find((account) => account.username === currentUsername).creditCard;
+        const payment = newMovement('card-payment', `Pago tarjeta de crédito ****${card.cardNumber.slice(-4)}`, amount);
+        const paid = addMovement(current, currentUsername, fromAccountNumber, payment);
+        return updateCard(paid, currentUsername, (paidCard) => addCardMovement(paidCard, {
+          ...payment,
+          id: `${payment.id}-tc`,
+          description: `Pago desde cuenta ****${fromAccountNumber.slice(-4)}`,
+        }));
+      });
+    },
+    onBlock: async () => {
+      if (!USE_LOCAL_STORAGE) {
+        replaceAccount(await bloquearTarjeta(currentUsername));
+        return;
+      }
+      setAccounts((current) => updateCard(current, currentUsername, (card) => ({ ...card, active: false })));
+    },
     onCanceled: () => setAccounts((current) => current.map((account) => (
       account.username === currentUsername ? { ...account, creditCard: null } : account
     ))),

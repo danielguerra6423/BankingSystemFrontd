@@ -184,6 +184,23 @@ export async function cambiarClave(username, currentPassword, newPassword) {
   return { message: 'Clave actualizada correctamente.' }
 }
 
+// Destino de una transferencia MiPlata (igual que GET /api/cuentas/destino del backend)
+export async function buscarCuentaDestino(accountNumber) {
+  for (const user of readUsers()) {
+    const bankAccount = user.bankAccounts.find((candidate) => candidate.accountNumber === accountNumber)
+    if (bankAccount) return { fullName: user.fullName, username: user.username, accountType: bankAccount.accountType, accountNumber }
+  }
+  throw new Error('No encontramos una cuenta MiPlata con ese número.')
+}
+
+// Destino por celular: la primera cuenta del usuario (igual que GET /api/cuentas/destino-celular)
+export async function buscarDestinoPorCelular(phone) {
+  const user = readUsers().find((candidate) => candidate.phone === phone)
+  if (!user) throw new Error('No hay una cuenta MiPlata registrada con ese celular.')
+  const [first] = user.bankAccounts
+  return { fullName: user.fullName, username: user.username, accountType: first.accountType, accountNumber: first.accountNumber }
+}
+
 // Abre una cuenta más para el usuario: máximo una de cada tipo (ahorros y corriente)
 export async function abrirCuenta(username, accountType, balance) {
   const users = readUsers()
