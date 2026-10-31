@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { USE_LOCAL_STORAGE, registrarCuenta } from '../core/api/api.js'
 import { EMAIL_PATTERN, PHONE_PATTERN, formatMoneyInput, noSpaces, onlyAlphanumeric, onlyDigits, onlyLetters, onlyUsernameChars, parseMoney } from '../core/utils/inputFilters.js'
+import PasswordInput from '../core/components/PasswordInput.jsx'
 
 // Formulario de registro de cuenta de demostración. Valida los datos en el frontend y luego crea la cuenta con api.js (localStorage o backend, según USE_LOCAL_STORAGE).
 export default function RegisterPage() {
   const [error, setError] = useState('')
   const [sending, setSending] = useState(false)
   const [documentType, setDocumentType] = useState('CC')
+  const [showPassword, setShowPassword] = useState(false)
   const navigate = useNavigate()
 // Variables de estado para controlar el formulario y mostrar mensajes de error o éxito. Se usan expresiones regulares para validar el formato de los datos ingresados por el usuario.
   async function handleSubmit(event) {
@@ -157,11 +159,12 @@ export default function RegisterPage() {
             <div className="form-row">
               <div className="form-group">
                 <label htmlFor="register-password">Contraseña</label>
-                <input id="register-password" className="form-control" name="password" type="password" autoComplete="new-password" placeholder="Mínimo 4 caracteres" minLength={4} maxLength={50} required />
+                <PasswordInput id="register-password" name="password" autoComplete="new-password" placeholder="Mínimo 4 caracteres" minLength={4} maxLength={50} required visible={showPassword} onToggle={() => setShowPassword((shown) => !shown)} />
               </div>
               <div className="form-group">
                 <label htmlFor="register-password-confirmation">Confirmar contraseña</label>
-                <input id="register-password-confirmation" className="form-control" name="passwordConfirmation" type="password" autoComplete="new-password" placeholder="Repite la contraseña" minLength={4} maxLength={50} required />
+                {/* sin ojo propio: se muestra u oculta junto con la contraseña */}
+                <PasswordInput id="register-password-confirmation" name="passwordConfirmation" autoComplete="new-password" placeholder="Repite la contraseña" minLength={4} maxLength={50} required visible={showPassword} />
               </div>
             </div>
             <div className="form-row">
