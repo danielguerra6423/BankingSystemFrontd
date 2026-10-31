@@ -3,7 +3,7 @@
 // actualizarContacto, cambiarClave, abrirCuenta, solicitarTarjeta, cancelarTarjeta), con las mismas reglas y mensajes de error,
 // para poder volver a la base de datos cambiando solo USE_LOCAL_STORAGE en api.js.
 
-import { ACCOUNT_TYPE_NAMES, withBankAccounts } from '../../accounts/bankAccounts.js'
+import { ACCOUNT_TYPE_NAMES, overdraftFor, withBankAccounts } from '../../accounts/bankAccounts.js'
 import { CARD_LIMIT_MAX, CARD_LIMIT_MIN } from '../../credit-card/creditCard.js'
 
 const USERS_KEY = 'miplata-users'
@@ -131,6 +131,7 @@ export async function registrarCuenta(account) {
       accountType: account.accountType,
       accountNumber: generateAccountNumber(users),
       balance: account.balance,
+      overdraft: overdraftFor(account.accountType, account.balance),
       transactions: [],
     }],
     active: true,
@@ -210,7 +211,7 @@ export async function abrirCuenta(username, accountType, balance) {
     throw new Error(`Ya tienes una ${ACCOUNT_TYPE_NAMES[accountType]}.`)
   }
 
-  user.bankAccounts.push({ accountType, accountNumber: generateAccountNumber(users), balance, transactions: [] })
+  user.bankAccounts.push({ accountType, accountNumber: generateAccountNumber(users), balance, overdraft: overdraftFor(accountType, balance), transactions: [] })
   writeUsers(users)
   return toPublicAccount(user)
 }

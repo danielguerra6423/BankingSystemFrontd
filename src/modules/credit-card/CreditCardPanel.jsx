@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import AccountPicker from '../accounts/AccountPicker.jsx'
 import { cancelarTarjeta, solicitarTarjeta } from '../core/api/api.js'
-import { accountLabel } from '../accounts/bankAccounts.js'
+import { accountLabel, availableBalance } from '../accounts/bankAccounts.js'
 import {
   CARD_LIMIT_MAX,
   CARD_LIMIT_MIN,
@@ -149,7 +149,7 @@ export default function CreditCardPanel({ account, formatMoney, onIssued, onPurc
       return
     }
 
-    if (amount > payFrom.balance) {
+    if (amount > availableBalance(payFrom)) {
       showMessage('payment', 'error', 'No tienes saldo suficiente en esa cuenta.')
       return
     }
@@ -293,7 +293,7 @@ export default function CreditCardPanel({ account, formatMoney, onIssued, onPurc
           {card.debt > 0 ? (
             <>
               <AccountPicker id="card-pay-from" label="Pagar desde" bankAccounts={bankAccounts} value={payFromNumber} onChange={setPayFromNumber} />
-              {payFrom && <p className="panel-balance">Saldo disponible: <strong>{formatMoney(payFrom.balance)}</strong></p>}
+              {payFrom && <p className="panel-balance">Saldo disponible: <strong>{formatMoney(availableBalance(payFrom))}</strong>{payFrom.overdraft > 0 && ` (incluye sobregiro de ${formatMoney(payFrom.overdraft)})`}</p>}
               <div className="form-group">
                 <label htmlFor="card-payment-amount">Monto a pagar (COP)</label>
                 <input id="card-payment-amount" className="form-control" name="amount" type="text" inputMode="numeric" autoComplete="off" placeholder={`Deuda: ${formatMoney(card.debt)}`} onInput={formatMoneyInput} required />

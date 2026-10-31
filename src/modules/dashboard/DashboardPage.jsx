@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Navigate, NavLink, useNavigate, useParams } from 'react-router-dom'
 import { abrirCuenta, actualizarContacto, cambiarClave } from '../core/api/api.js'
-import { ACCOUNT_TYPE_NAMES, accountLabel, shortAccountLabel } from '../accounts/bankAccounts.js'
+import { ACCOUNT_TYPE_NAMES, accountLabel, availableBalance, shortAccountLabel } from '../accounts/bankAccounts.js'
 import { EMAIL_PATTERN, PHONE_PATTERN, formatAccountNumber, formatMoneyInput, noSpaces, onlyDigits, parseMoney } from '../core/utils/inputFilters.js'
 import AccountPicker from '../accounts/AccountPicker.jsx'
 import PasswordInput from '../core/components/PasswordInput.jsx'
@@ -165,7 +165,13 @@ export default function DashboardPage({ account, accounts, onDeposit, onWithdraw
 
   function renderCurrentBalance(bankAccount) {
     if (!bankAccount) return null
-    return <p className="panel-balance">Saldo disponible: <strong>{currency.format(bankAccount.balance)}</strong></p>
+    // en la cuenta corriente el disponible incluye el sobregiro
+    return (
+      <p className="panel-balance">
+        Saldo disponible: <strong>{currency.format(availableBalance(bankAccount))}</strong>
+        {bankAccount.overdraft > 0 && ` (saldo ${currency.format(bankAccount.balance)} + sobregiro ${currency.format(bankAccount.overdraft)})`}
+      </p>
+    )
   }
 
   async function submitOpenAccount(event) {
@@ -203,7 +209,7 @@ export default function DashboardPage({ account, accounts, onDeposit, onWithdraw
       return
     }
 
-    if (operation !== 'deposit' && amount > pickedAccount.balance) {
+    if (operation !== 'deposit' && amount > availableBalance(pickedAccount)) {
       setFeedback({ type: 'error', text: 'No tienes saldo suficiente para esta operación.' })
       return
     }
@@ -385,7 +391,7 @@ export default function DashboardPage({ account, accounts, onDeposit, onWithdraw
           {bankAccounts.map((bankAccount) => (
             <article className="saldo-stat-card" key={bankAccount.accountNumber}>
               <div className={`saldo-stat-icon ${bankAccount.accountType === 'CC' ? 'gold' : ''}`} aria-hidden="true">{bankAccount.accountType === 'CC' ? '◆' : '$'}</div>
-              <div className="saldo-stat-body"><div className="saldo-stat-label">{accountLabel(bankAccount)}</div><div className="saldo-stat-value c-green">{currency.format(bankAccount.balance)}</div></div>
+              <div className="saldo-stat-body"><div className="saldo-stat-label">{accountLabel(bankAccount)}{bankAccount.overdraft > 0 && ` · sobregiro ${currency.format(bankAccount.overdraft)}`}</div><div className={`saldo-stat-value ${bankAccount.balance < 0 ? 'c-warn' : 'c-green'}`}>{currency.format(bankAccount.balance)}</div></div>
             </article>
           ))}
         </div>

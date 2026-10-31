@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import AccountPicker from '../accounts/AccountPicker.jsx'
-import { accountLabel } from '../accounts/bankAccounts.js'
+import { accountLabel, availableBalance } from '../accounts/bankAccounts.js'
 import { buscarCuentaDestino, buscarDestinoPorCelular } from '../core/api/api.js'
 import { PHONE_PATTERN, accountInputLength, formatAccountInput, formatAccountNumber, formatMoneyInput, onlyDigits, parseMoney } from '../core/utils/inputFilters.js'
 
@@ -129,7 +129,7 @@ export default function TransferPanel({ account, onTransfer, formatMoney }) {
       return
     }
 
-    if (amount > source.balance) {
+    if (amount > availableBalance(source)) {
       setFeedback({ type: 'error', text: 'No tienes saldo suficiente para esta transferencia.' })
       return
     }
@@ -142,7 +142,7 @@ export default function TransferPanel({ account, onTransfer, formatMoney }) {
   async function confirmTransfer() {
     // el saldo pudo cambiar mientras se confirmaba
     const from = bankAccounts.find((bankAccount) => bankAccount.accountNumber === draft.fromAccountNumber)
-    if (draft.amount > from.balance) {
+    if (draft.amount > availableBalance(from)) {
       setDraft(null)
       setFeedback({ type: 'error', text: 'No tienes saldo suficiente para esta transferencia.' })
       return
@@ -163,7 +163,7 @@ export default function TransferPanel({ account, onTransfer, formatMoney }) {
 
   return (
     <>
-      {source && <p className="panel-balance">Saldo disponible: <strong>{formatMoney(source.balance)}</strong></p>}
+      {source && <p className="panel-balance">Saldo disponible: <strong>{formatMoney(availableBalance(source))}</strong>{source.overdraft > 0 && ` (incluye sobregiro de ${formatMoney(source.overdraft)})`}</p>}
       {feedback && <div className={`info-box ${feedback.type === 'error' ? 'warn' : 'info'}`} role="status">{feedback.text}</div>}
 
       {draft && (
