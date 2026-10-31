@@ -15,20 +15,21 @@ export const maskedCardNumber = (card) => `•••• •••• •••�
 // MM/AA
 export const cardExpiry = (card) => `${card.expiresAt.slice(5, 7)}/${card.expiresAt.slice(2, 4)}`
 
-// Compras a cuotas: de 1 a 36. Hasta 3 cuotas sin interés; desde 4, interés mensual
-// con cuota fija (amortización francesa). La deuda sube por el total con intereses.
-export const MAX_INSTALLMENTS = 36
-export const INTEREST_FREE_INSTALLMENTS = 3
-export const MONTHLY_RATE = 0.019
+// Compras a cuotas: el usuario elige 1, 3, 6, 12, 24 o 36 cuotas. 1 cuota sin interés;
+// las demás con interés del 1,8 % mensual y cuota fija (amortización francesa), igual
+// que STarjetaCredito.planDeCuotas del backend. La deuda sube por el total con intereses.
+// Ejemplo con $1.000.000: 3 cuotas +3,6 %, 6 +6,4 %, 12 +12,1 %, 24 +24 %, 36 +36,7 %.
+export const INSTALLMENT_OPTIONS = [1, 3, 6, 12, 24, 36]
+export const MONTHLY_RATE = 0.018
 
-export const isValidInstallments = (installments) => Number.isInteger(installments) && installments >= 1 && installments <= MAX_INSTALLMENTS
+export const isValidInstallments = (installments) => INSTALLMENT_OPTIONS.includes(installments)
 
 // { capital, installments, rate, payment, total, interest }
 export function installmentPlan(capital, installments) {
-  const rate = installments > INTEREST_FREE_INSTALLMENTS ? MONTHLY_RATE : 0
-  if (!rate) {
-    return { capital, installments, rate, payment: Math.ceil(capital / installments), total: capital, interest: 0 }
+  if (installments === 1) {
+    return { capital, installments, rate: 0, payment: capital, total: capital, interest: 0 }
   }
+  const rate = MONTHLY_RATE
   const payment = Math.ceil((capital * rate) / (1 - (1 + rate) ** -installments))
   const total = payment * installments
   return { capital, installments, rate, payment, total, interest: total - capital }
